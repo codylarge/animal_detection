@@ -1,0 +1,7 @@
+10/28 (35.7%)
+Resize: 224x224
+Green box showing
+
+13/28 (46.43%)
+Resize: 224x224
+Green box NOT showing

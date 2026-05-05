@@ -1,0 +1,3 @@
+Total classification hits: 3
+Top species detected:
+  Coyote: 3 hit(s), avg confidence 0.70

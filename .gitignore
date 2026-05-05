@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+
+# Database
+database.db
+
+# Detection output
+motion_snaps/
+ftp_uploads/
+
+# Node
+server/client/node_modules/
+server/client/dist/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+desktop.ini
