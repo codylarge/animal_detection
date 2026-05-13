@@ -31,9 +31,10 @@ stop_event = threading.Event()
 pre_event_buffer = collections.deque(maxlen=BUFFER_SECONDS * FPS)
 
 # Event globals
-current_event_dir      = None
-current_classifications = []
-current_event_frames   = []
+current_event_dir        = None
+current_classifications  = []
+current_event_frames     = []
+current_images_sent      = 0   # images dispatched to classifier this event
 
 # FTP trigger — set by ftp_watcher, cleared when event ends
 motion_triggered = threading.Event()
@@ -41,17 +42,29 @@ motion_triggered = threading.Event()
 
 # End of event handler
 def end_event():
-    global current_event_dir, current_classifications, current_event_frames
+    global current_event_dir, current_classifications, current_event_frames, current_images_sent
 
     print("\n--- Event Ended ---")
 
-    if not current_classifications:
-        print("No classifications recorded.")
+    total_hits = len(current_classifications)
+    min_classifications = current_images_sent * 0.10 if current_images_sent > 0 else 0 # Require at least 10% of images to be classified
+
+    discard_reason = None
+    if total_hits <= 2:
+        discard_reason = f"too few classifications ({total_hits})"
+    elif total_hits < min_classifications:
+        discard_reason = (
+            f"classifications ({total_hits}) below 10% of images sent ({current_images_sent})"
+        )
+
+    if discard_reason:
+        print(f"Event discarded — {discard_reason}.")
         remove_folder(current_event_dir)
-        print(f"Deleted empty event folder: {current_event_dir}")
-        current_event_dir      = None
+        print(f"Deleted event folder: {current_event_dir}")
+        current_event_dir = None
         current_classifications = []
-        current_event_frames   = []
+        current_event_frames = []
+        current_images_sent = 0
         motion_triggered.clear()
         return
 
@@ -110,9 +123,10 @@ def end_event():
         total_hits=len(current_classifications)
     )
 
-    current_event_dir      = None
+    current_event_dir       = None
     current_classifications = []
-    current_event_frames   = []
+    current_event_frames    = []
+    current_images_sent     = 0
     motion_triggered.clear()
 
 
@@ -260,7 +274,7 @@ def motion_detection():
         current_time = time.time()
 
         if motion_detected:
-            motion_counter   = min(motion_counter + 1, motion_threshold + 1)
+            motion_counter = min(motion_counter + 1, motion_threshold + 1)
             last_motion_time = current_time
         else:
             motion_counter = max(0, motion_counter - 1)
@@ -286,7 +300,7 @@ def motion_detection():
 
 # Creates folder, saves snapshots, accumulates frames for video.
 def event_manager():
-    global current_event_dir, current_event_frames
+    global current_event_dir, current_event_frames, current_images_sent
 
     frame_counter = 0
 
@@ -302,12 +316,13 @@ def event_manager():
         # Create event folder on first frame
         if current_event_dir is None:
             readable_time = time.strftime("%Y-%m-%d_%I-%M%p")
-            folder_name   = f"event_{readable_time}"
-            new_dir       = os.path.join("motion_snaps", folder_name)
+            folder_name = f"event_{readable_time}"
+            new_dir = os.path.join("motion_snaps", folder_name)
             os.makedirs(new_dir, exist_ok=True)
-            current_event_dir    = new_dir
+            current_event_dir = new_dir
             current_event_frames = []
-            frame_counter        = 0
+            current_images_sent = 0
+            frame_counter = 0
             print(f"Event folder created: {current_event_dir}")
 
         # Accumulate every frame for video
@@ -334,6 +349,7 @@ def event_manager():
 
                 if not classification_queue.full():
                     classification_queue.put(zoom_filename)
+                    current_images_sent += 1
 
 
 def classification_worker():
